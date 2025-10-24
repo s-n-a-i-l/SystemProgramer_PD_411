@@ -231,7 +231,7 @@ public:
 			case '+':
 			{
 				speed += 10;
-				if (speed > MAX_SPEED_UPPER_LIMIT) speed = MAX_SPEED_UPPER_LIMIT;
+				if (speed > 270) speed = 270;
 				break;
 			}
 			case '-':
@@ -273,8 +273,12 @@ public:
 			if (target_distance_km > 0.0 && distance_traveled_km >= target_distance_km)
 			{
 				distance_traveled_km = target_distance_km;
+				while(speed !=0)
+				{
+				 speed = speed-=10;
+				 std::this_thread::sleep_for(1s);
+				}
 				engine.stop();
-				speed = 0;
 				break;
 			}
 			std::this_thread::sleep_for(1s);
