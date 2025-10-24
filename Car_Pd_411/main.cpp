@@ -276,7 +276,7 @@ public:
 				while(speed !=0)
 				{
 				 speed = speed-=10;
-				 double fuel_after = tank.give_fuel(fuel_needed_per_sec);
+				 tank.give_fuel(fuel_needed_per_sec);
 				 std::this_thread::sleep_for(1s);
 				}
 				engine.stop();
