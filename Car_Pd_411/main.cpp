@@ -231,7 +231,7 @@ public:
 			case '+':
 			{
 				speed += 10;
-				if (speed > MAX_SPEED_LOWER_LIMIT) speed = MAX_SPEED_LOWER_LIMIT;
+				if (speed > MAX_SPEED_UPPER_LIMIT) speed = MAX_SPEED_UPPER_LIMIT;
 				break;
 			}
 			case '-':
