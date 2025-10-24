@@ -44,13 +44,13 @@ public:
 		return fuel_level;
 	}
 
-	Tank(int volume):
-	VOLUME
-	(
-		volume < MIN_TANK_VOLUME ? MIN_TANK_VOLUME :
-		volume > MAX_TANK_VOLUME ? MAX_TANK_VOLUME :
-		volume
-	)
+	Tank(int volume) :
+		VOLUME
+		(
+			volume < MIN_TANK_VOLUME ? MIN_TANK_VOLUME :
+			volume > MAX_TANK_VOLUME ? MAX_TANK_VOLUME :
+			volume
+		)
 	{
 		//this->VOLUME = volume;obliged-обязан облайдж левосторонеее и(относительно =) провостороннее значения
 		this->fuel_level = 0;
@@ -64,7 +64,7 @@ public:
 	void info() const
 	{
 		cout << "Volume:\t" << VOLUME << " liters\n";
-		cout << "Fuel:\t" << get_fuel_level()<< " liters\n";
+		cout << "Fuel:\t" << get_fuel_level() << " liters\n";
 	}
 
 };
@@ -80,16 +80,23 @@ class Engine
 public:
 	const double CONSUMPTION;
 
+	double consumption_liters_per_second_at_speed(int speed_kmh) const
+	{
+		if (speed_kmh <= 0)
+			return get_consumption_per_second(); // холостой ход
+		return (CONSUMPTION * ((double)speed_kmh / 100.0)) / 3600.0;
+	}
+
 	double get_consumption_per_second() const
 	{
 		return consumption_per_second;
 	}
-	Engine(double consumption):CONSUMPTION
+	Engine(double consumption) :CONSUMPTION
 	(
 		consumption < MIN_ENGINE_CONSUMPTION ? MIN_ENGINE_CONSUMPTION :
 		consumption > MAX_ENGINE_CONSUMPTION ? MAX_ENGINE_CONSUMPTION :
 		consumption
-    )
+	)
 	{
 		consumption_per_second = CONSUMPTION * 3e-5;
 		is_started = false;
@@ -127,12 +134,17 @@ class Car
 	const int MAX_SPEED;
 	int speed;
 	bool driver_inside;
+	double target_distance_km; // цель км
+	double distance_traveled_km; // пройдено км
 	struct //Threads
 	{
 		std::thread panel_thread;
 		std::thread engine_idle_threads;
+
 	}threads;
+
 public:
+
 	Car(double consumption, int volume, int max_speed) :
 		engine(consumption),
 		tank(volume),
@@ -155,7 +167,7 @@ public:
 	{
 		driver_inside = true;
 		//panel();
-		threads.panel_thread = std::thread(&Car::panel,this);
+		threads.panel_thread = std::thread(&Car::panel, this);
 	}
 	void get_out()
 	{
@@ -166,11 +178,11 @@ public:
 	}
 	void start()
 	{
-	  if(driver_inside && tank.get_fuel_level())
-	  {
-		  engine.start();
-		  threads.engine_idle_threads = std::thread(&Car::engine_idle, this);
-	  }
+		if (driver_inside && tank.get_fuel_level())
+		{
+			engine.start();
+			threads.engine_idle_threads = std::thread(&Car::engine_idle, this);
+		}
 	}
 	void stop()
 	{
@@ -184,7 +196,7 @@ public:
 		do
 		{
 			key = 0;
-			if(_kbhit())key = _getch();
+			if (_kbhit())key = _getch();
 			switch (key)
 			{
 			case Enter:
@@ -202,17 +214,72 @@ public:
 				if (engine.started())stop();
 				else start();
 				break;
+			case 'K':
+			case 'k':
+			{
+				double distance;
+				cout << "Enter distance to travel (km): ";
+				cin >> distance;
+				if (distance < 0) distance = 0;
+				else
+				{
+					target_distance_km = distance;
+					distance_traveled_km = 0.0;
+				}
+				break;
+			}
+			case '+':
+			{
+				speed += 10;
+				if (speed > MAX_SPEED_LOWER_LIMIT) speed = MAX_SPEED_LOWER_LIMIT;
+				break;
+			}
+			case '-':
+			{
+				speed -= 10;
+				if (speed < 0) speed = 0;
+			}
+			break;
+			case '0':
+			{
+				speed = 0;
+			}
+			break;
 			case Escape:
 				stop();
 				get_out();
 			}
 			if (tank.get_fuel_level() == 0 && threads.engine_idle_threads.joinable())stop();
+			std::this_thread::sleep_for(50ms);
 		} while (key != Escape);
 	}
 	void engine_idle()
 	{
-	  while(engine.started() && tank.give_fuel(engine.get_consumption_per_second()))
-	   std::this_thread::sleep_for(1s);
+		while (engine.started() && tank.give_fuel(engine.get_consumption_per_second()))
+		{
+			//расход за текущую секунду (включая холостой)
+			double fuel_needed_per_sec = engine.consumption_liters_per_second_at_speed(speed);
+			if (speed <= 0)
+				fuel_needed_per_sec = engine.get_consumption_per_second();
+
+			//-топливо
+			double fuel_after = tank.give_fuel(fuel_needed_per_sec);
+
+			// новый пройденный путь
+			double km_this_second = static_cast<double>(speed) / 3600.0;
+			distance_traveled_km += km_this_second;
+
+			//проверка на достижение цели
+			if (target_distance_km > 0.0 && distance_traveled_km >= target_distance_km)
+			{
+				distance_traveled_km = target_distance_km;
+				engine.stop();
+				speed = 0;
+				break;
+			}
+			std::this_thread::sleep_for(1s);
+		}
+			std::this_thread::sleep_for(1s);
 	}
 	void panel()const
 	{
@@ -220,7 +287,7 @@ public:
 		{
 			system("CLS");
 			cout << "Fuel level:\t" << tank.get_fuel_level() << " liters.";
-			if(tank.get_fuel_level() < 5)
+			if (tank.get_fuel_level() < 5)
 			{
 				HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
 				SetConsoleTextAttribute(hConsole, 0x4F);
@@ -229,6 +296,19 @@ public:
 			}
 			cout << endl;
 			cout << "Engine is " << (engine.started() ? "started" : "stopped") << endl;
+			cout << "Speed: " << speed << " km/h" << endl;
+
+			if (target_distance_km > 0.0)
+			{
+				double remaining = target_distance_km - distance_traveled_km;
+				if (remaining < 0) remaining = 0;
+				cout << "Target: " << target_distance_km << " km. Passed: " << distance_traveled_km << " km. Remaining: " << remaining << " km." << endl;
+			}
+			else
+			{
+				cout << "No target distance set. Press 'K' to set kms." << endl;
+			}
+
 			std::this_thread::sleep_for(100ms);
 		}
 	}
